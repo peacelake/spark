@@ -41,4 +41,3 @@ count = distData.reduce(lambda a, b: a + b)
 print "Array count %i" %count
 
 
-
