@@ -1,21 +1,31 @@
-from cassandra.cluster import Cluster
+from pyspark import SparkConf, SparkContext
 
-cluster = Cluster(
-        contact_points=['10.144.57.200'],
-#        default_retry_policy = RetryPolicy()
-#        load_balancing_policy= TokenAwarePolicy(DCAwareRoundRobinPolicy(local_dc='datacenter1')),
-        )
-session = cluster.connect('test')
-session.default_timeout = 180 # in seconds
+#conf = SparkConf().set("spark.cassandra.connection.host", "127.0.0.1")
+#sc = SparkContext("spark://127.0.0.1:7077", "test", conf)
 
-# Insert one record into the users table
-prepared_stmt = session.prepare ( "INSERT INTO users (name, address, description) VALUES (?, ?, ?)")
-bound_stmt = prepared_stmt.bind(['Jones', 'Austin2', 'bob@example.com'])
-stmt = session.execute(bound_stmt)
 
-# Use select to get the user we just entered
-prepared_stmt = session.prepare ( "SELECT * FROM users limit 100")
-#bound_stmt = prepared_stmt.bind(['Jones'])
-stmt = session.execute(prepared_stmt)
-for x in stmt: print x.name, x.address, x[2]
+host = "127.0.0.1"
+keyspace = "gbs"
+cf = "users"
 
+sc = SparkContext(appName="CassandraInputFormat")
+conf = {"cassandra.input.thrift.address": host,
+            "cassandra.input.thrift.port": "9160",
+            "cassandra.input.keyspace": keyspace,
+            "cassandra.input.columnfamily": cf,
+            "cassandra.input.partitioner.class": "Murmur3Partitioner",
+            "cassandra.input.page.row.size": "3"}
+
+cass_rdd = sc.newAPIHadoopRDD(
+        "org.apache.cassandra.hadoop.cql3.CqlPagingInputFormat",
+        "java.util.Map",
+        "java.util.Map",
+        keyConverter="org.apache.spark.examples.pythonconverters.CassandraCQLKeyConverter",
+        valueConverter="org.apache.spark.examples.pythonconverters.CassandraCQLValueConverter",
+        conf=conf)
+
+output = cass_rdd.collect()
+for (k, v) in output:
+	print((k, v))
+
+sc.stop()
